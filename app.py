@@ -1,22 +1,30 @@
 import pickle
+import os          # <- this is required for os.path.join
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 from streamlit_option_menu import option_menu
+import google.generativeai as genai
 
-
-
+#  Gemini API Setup
+genai.configure(api_key="AIzaSyDKIRO4yqXCoBqK8WXu24F6wGuu7S_GHf4")
+model = genai.GenerativeModel(
+    model_name="gemini-1.5-flash",
+    system_instruction="You are a professional medical assistant. Provide accurate information about diseases, symptoms, and health advice. Always include a disclaimer that this is not a substitute for professional medical advice."
+)
 
 # Set page configuration
 st.set_page_config(page_title="Health Assistant",
                    layout="wide",
                    page_icon="🧑‍⚕️")
 
+                   
+working_dir = r"C:\Users\praveen maletha\Documents\Smart-Diagnosis-Hub-main"
 # Load saved models
-diabetes_model = pickle.load(open('C:/Users/pranj/OneDrive/Documents/mutiple-disease-prediction-system-main/saved_models/diabetes_model.sav', 'rb'))
-heart_disease_model = pickle.load(open('C:/Users/pranj/OneDrive/Documents/mutiple-disease-prediction-system-main/saved_models/heart_disease_model.sav', 'rb'))
-parkinsons_model = pickle.load(open('C:/Users/pranj/OneDrive/Documents/mutiple-disease-prediction-system-main/saved_models/parkinsons_model.sav', 'rb'))
+diabetes_model = pickle.load(open(os.path.join(working_dir, "saved_models", "diabetes_model.sav"), "rb"))
+heart_disease_model = pickle.load(open(os.path.join(working_dir, "saved_models", "heart_disease_model.sav"), "rb"))
+parkinsons_model = pickle.load(open(os.path.join(working_dir, "saved_models", "parkinsons_model.sav"), "rb"))
 
 
 
@@ -36,9 +44,10 @@ with st.sidebar:
         options=[
             'Diabetes Prediction',
             'Heart Disease Prediction',
-            'Parkinsons Prediction'
+            'Parkinsons Prediction',
+            'Health Assistant Chatbot'
         ],  # Required
-        icons=['activity', 'heart', 'person'],  # Optional
+        icons=['activity', 'heart', 'person', 'robot'],  # Optional
         menu_icon="hospital-fill",  # Optional
         default_index=0,  # Optional
         styles={
@@ -47,7 +56,7 @@ with st.sidebar:
                 "font-size": "16px",
                 "font-weight": "bold",
                 "background-color": "#3a3f44",
-                "color:white"
+                "color": "white",
                 "text-align": "left",
                 "margin": "5px",
             },
@@ -245,7 +254,7 @@ if selected == 'Heart Disease Prediction':
 
     # Prediction and analysis
     if st.button('Heart Disease Test Result'):
-        user_input = [age, sex, cp, trestbps, chol, fbs, restecg, thalach, exang, oldpeak, slope, ca, thal]
+        user_input = [age, sex, cp, trestbps, chol, fbs, restecg, thalach, xang, oldpeak, slope, ca, thal]
         user_input = [float(x) for x in user_input]
         heart_prediction = heart_disease_model.predict([user_input])
         diagnosis = 'The person is having heart disease' if heart_prediction[0] == 1 else 'The person does not have any heart disease'
@@ -305,87 +314,39 @@ if selected == 'Parkinsons Prediction':
         show_comparative_analysis(user_input, benchmark_data, feature_names, "Comparative Analysis for Parkinson's")
 
         # Show risks and measures
-        show_risks_and_measures("Parkinson's")
+        show_risks_and_measures("Parkinson's Disease")
         
         # Download health report
         download_report("Parkinson's", diagnosis, user_input, feature_names)
-        
-        
-        
 
-# Function to generate chatbot responses
-def chatbot_response(user_input):
-    user_input = user_input.lower()
+# --- Health Assistant Chatbot Logic ---
+if selected == 'Health Assistant Chatbot':
+    st.title("Health Assistant Chatbot 🤖")
+    st.markdown("Ask me anything about any disease, health conditions, or symptoms.")
 
-    if "diabetes" in user_input:
-        return "Diabetes is a condition where the body doesn't produce enough insulin or can't use it properly. Would you like to know about symptoms or prevention?"
-    elif "heart disease" in user_input:
-        return "Heart disease includes various conditions affecting the heart. Do you want information on risk factors or prevention?"
-    elif "parkinson" in user_input:
-        return "Parkinson's disease is a neurodegenerative disorder. Are you looking for early signs or management tips?"
-    else:
-        return "I'm here to help with information on diabetes, heart disease, and Parkinson's. Feel free to ask me anything!"
+    # Initialize session state for chatbot history
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
 
-# Initialize session state
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+    # Display chat history
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
-# Streamlit UI
-st.title("Health Assistant Chatbot 🤖")
-st.markdown("Ask about diabetes, heart disease, or Parkinson's disease.")
+    # User chat input
+    if user_input := st.chat_input("Type your health-related query here..."):
+        # Add user message to state
+        st.session_state.messages.append({"role": "user", "content": user_input})
+        with st.chat_message("user"):
+            st.markdown(user_input)
 
-# Display previous messages
-for message in st.session_state.messages:
-    st.chat_message(message["role"]).markdown(message["content"])
-
-# Handle user input
-if user_input := st.chat_input("Type your message here..."):
-    st.session_state.messages.append({"role": "user", "content": user_input})
-
-    # Generate and display chatbot response
-    response = chatbot_response(user_input)
-    st.session_state.messages.append({"role": "assistant", "content": response})
-    st.chat_message("assistant").markdown(response)
-
-# Add buttons for follow-up questions
-if st.session_state.messages:  # Check if there are messages
-    last_message_content = st.session_state.messages[-1]["content"].lower()
-
-    if "diabetes" in last_message_content:
-        if st.button("Symptoms of Diabetes"):
-            st.session_state.messages.append({
-
-                     "role": "assistant",
-                      "content": "Feeling more thirsty than usual.\nUrinating often.\nLosing weight without trying.\nPresence of ketones in the urine.\nFeeling tired and weak.\nFeeling irritable or having other mood changes.\nHaving blurry vision.\nHaving slow-healing sores."
-            })
-        if st.button("Prevention Tips"):
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": "Prevention involves a healthy diet, regular exercise, and monitoring blood sugar levels."
-            })
-
-    elif "heart disease" in last_message_content:
-        if st.button("Symptoms of Heart Disease"):
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": "Symptoms include chest pain, shortness of breath, and fatigue."
-            })
-        if st.button("Prevention Tips"):
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": "Prevention involves a healthy diet, exercise, and avoiding smoking."
-            })
-
-    elif "parkinson" in last_message_content:
-        if st.button("Symptoms of Parkinson's"):
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": "Symptoms include tremors, slow movement, and muscle stiffness."
-            })
-        if st.button("Management Tips"):
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": "Management involves staying active, consulting a neurologist, and physical therapy."
-            })
-
-#
+        # Generate and display Gemini response
+        with st.chat_message("assistant"):
+            try:
+                response = model.generate_content(user_input)
+                ai_message = response.text
+                st.markdown(ai_message)
+                # Save assistant message to state
+                st.session_state.messages.append({"role": "assistant", "content": ai_message})
+            except Exception as e:
+                st.error(f"Error connecting to AI: {e}")
